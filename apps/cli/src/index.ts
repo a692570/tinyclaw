@@ -13,9 +13,9 @@ import {
   HeartwareManager,
   createHeartwareTools,
   loadHeartwareContext,
+  createLearningEngine,
   type HeartwareConfig
 } from '@tinyclaw/core';
-import { createLearningEngine } from '@tinyclaw/learning';
 import { createWebUI } from '@tinyclaw/ui';
 
 // Get __dirname equivalent in ES modules

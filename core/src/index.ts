@@ -7,3 +7,7 @@ export { ProviderOrchestrator } from './orchestrator.js';
 
 // Heartware exports
 export * from './heartware/index.js';
+
+// Learning exports
+export { createLearningEngine, type LearningEngineConfig } from './learning/index.js';
+export * from './learning/types.js';
