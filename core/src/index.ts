@@ -3,7 +3,7 @@ export { createDatabase } from './db.js';
 export { agentLoop } from './agent.js';
 export { logger } from './logger.js';
 export { createOllamaProvider } from './provider.js';
-export { ProviderOrchestrator } from './orchestrator.js';
+export { ProviderOrchestrator, type OrchestratorConfig } from './router/index.js';
 
 // Heartware exports
 export * from './heartware/index.js';
