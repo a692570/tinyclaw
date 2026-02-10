@@ -44,8 +44,10 @@
       "name": "@tinyclaw/core",
       "version": "1.0.0",
       "dependencies": {
+        "@wgtechlabs/config-engine": "^0.1.0",
         "@wgtechlabs/log-engine": "^2.2.0",
         "@wgtechlabs/secrets-engine": "^1.0.2",
+        "zod": "^3.24.0",
       },
     },
   },
@@ -210,6 +212,8 @@
 
     "@types/trusted-types": ["@types/trusted-types@2.0.7", "", {}, "sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw=="],
 
+    "@wgtechlabs/config-engine": ["@wgtechlabs/config-engine@0.1.0", "", { "dependencies": { "zod": "^3.24.2" }, "peerDependencies": { "@wgtechlabs/secrets-engine": ">=1.0.0", "better-sqlite3": ">=11.0.0" }, "optionalPeers": ["@wgtechlabs/secrets-engine", "better-sqlite3"] }, "sha512-mwUoiO2DbA9HkAmt0n1ZY/7cjN+dpymu+2zgWkI6TeAO3SRAqIU0GPyGNl3o3wkLm4RpKc662lOdLC3HJrqVaA=="],
+
     "@wgtechlabs/log-engine": ["@wgtechlabs/log-engine@2.2.0", "", {}, "sha512-TIvzfDPiWUWW7EX+kZ3q7id12inpe6t9n/OIX9ewIHaBeA7q8YY631f2RjHdkB33Wew9A0H1HGzTx98nKan+MQ=="],
 
     "@wgtechlabs/secrets-engine": ["@wgtechlabs/secrets-engine@1.0.2", "", {}, "sha512-W1gHanFE/21ic9NYCoAYr195NIA35F1EGfSfdwyNCK6VVrSirumnD/+GBgUUHnfVKyTRiHgO4XsNBrBR1ZLYiQ=="],
@@ -313,6 +317,8 @@
     "vitefu": ["vitefu@1.1.1", "", { "peerDependencies": { "vite": "^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0-beta.0" }, "optionalPeers": ["vite"] }, "sha512-B/Fegf3i8zh0yFbpzZ21amWzHmuNlLlmJT6n7bu5e+pCHUKQIfXSYokrqOBGEMMe9UG2sostKQF9mml/vYaWJQ=="],
 
     "zimmerframe": ["zimmerframe@1.1.4", "", {}, "sha512-B58NGBEoc8Y9MWWCQGl/gq9xBCe4IiKM0a2x7GZdQKOW5Exr8S1W24J6OgM1njK8xCRGvAJIL/MxXHf6SkmQKQ=="],
+
+    "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@tailwindcss/oxide-wasm32-wasi/@emnapi/core": ["@emnapi/core@1.8.1", "", { "dependencies": { "@emnapi/wasi-threads": "1.1.0", "tslib": "^2.4.0" }, "bundled": true }, "sha512-AvT9QFpxK0Zd8J0jopedNm+w/2fIzvtPKPjqyw9jwvBaReTTqPBk9Hixaz7KbjimP+QNz605/XnjFcDAL2pqBg=="],
 
