@@ -23,6 +23,15 @@ export { createSessionQueue, type SessionQueue } from './queue.js';
 // Cron exports
 export { createCronScheduler, type CronScheduler } from './cron.js';
 
+// Delegation exports
+export {
+  createDelegationTool,
+  runSubAgent,
+  type DelegationToolConfig,
+  type SubAgentConfig,
+  type SubAgentResult,
+} from './delegation.js';
+
 // Plugin exports
 export { loadPlugins, type LoadedPlugins } from './plugins.js';
 
