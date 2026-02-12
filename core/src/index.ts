@@ -11,6 +11,9 @@ export { createSessionQueue, type SessionQueue } from './queue.js';
 // Cron exports
 export { createCronScheduler, type CronScheduler } from './cron.js';
 
+// Plugin exports
+export { loadPlugins, type LoadedPlugins } from './plugins.js';
+
 // Heartware exports
 export * from './heartware/index.js';
 

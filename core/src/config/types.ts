@@ -78,6 +78,11 @@ export const TinyClawConfigSchema = z.object({
     workspace: z.string().optional(),
     defaultModel: z.string().optional(),
   }).optional(),
+
+  /** Plugin system settings */
+  plugins: z.object({
+    enabled: z.array(z.string()).optional(),
+  }).optional(),
 }).passthrough();
 
 /**
@@ -117,6 +122,9 @@ export const CONFIG_DEFAULTS: Partial<TinyClawConfigData> = {
   },
   agent: {
     name: 'TinyClaw',
+  },
+  plugins: {
+    enabled: [],
   },
 };
 

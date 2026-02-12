@@ -108,3 +108,78 @@ export interface TinyClawConfig {
     cwd?: string;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Plugin System
+// ---------------------------------------------------------------------------
+
+/** Common metadata shared by all plugin types. */
+export interface PluginMeta {
+  /** npm package name, e.g. "@tinyclaw/plugin-channel-discord" */
+  readonly id: string;
+  /** Human-readable name, e.g. "Discord" */
+  readonly name: string;
+  /** Short description shown at startup */
+  readonly description: string;
+  /** Plugin type discriminant */
+  readonly type: 'channel' | 'provider' | 'tools';
+  /** Plugin semver */
+  readonly version: string;
+}
+
+/**
+ * A channel plugin connects an external messaging platform to the agent loop.
+ *
+ * Lifecycle:
+ *   1. `getPairingTools()` — called during boot to merge pairing tools
+ *   2. `start(context)` — called after agentContext is built
+ *   3. The plugin drives messages into the agent via `context.enqueue`
+ *   4. `stop()` — called during graceful shutdown
+ */
+export interface ChannelPlugin extends PluginMeta {
+  readonly type: 'channel';
+  /** Boot the channel. */
+  start(context: PluginRuntimeContext): Promise<void>;
+  /** Tear down — disconnect from platform, flush any pending state. */
+  stop(): Promise<void>;
+  /**
+   * Return pairing tools that the agent can invoke to configure this channel.
+   * These tools are merged into AgentContext.tools before the agent loop starts.
+   */
+  getPairingTools?(
+    secrets: SecretsManagerInterface,
+    configManager: ConfigManagerInterface,
+  ): Tool[];
+}
+
+/** A provider plugin registers an additional LLM provider. */
+export interface ProviderPlugin extends PluginMeta {
+  readonly type: 'provider';
+  /** Create and return an initialized Provider instance. */
+  createProvider(secrets: SecretsManagerInterface): Promise<Provider>;
+}
+
+/** A tools plugin contributes additional agent tools. */
+export interface ToolsPlugin extends PluginMeta {
+  readonly type: 'tools';
+  /** Return the tools this plugin contributes. */
+  createTools(context: AgentContext): Tool[];
+}
+
+/** Union type for all plugin variants. */
+export type TinyClawPlugin = ChannelPlugin | ProviderPlugin | ToolsPlugin;
+
+/**
+ * Runtime context injected into channel plugins when they start.
+ * Gives channels everything needed to route messages through the agent.
+ */
+export interface PluginRuntimeContext {
+  /** Push a message into the session queue and run the agent loop. */
+  enqueue(userId: string, message: string): Promise<string>;
+  /** The initialized AgentContext. */
+  agentContext: AgentContext;
+  /** Secrets manager for resolving tokens. */
+  secrets: SecretsManagerInterface;
+  /** Config manager for reading/writing channel config. */
+  configManager: ConfigManagerInterface;
+}
