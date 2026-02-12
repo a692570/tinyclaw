@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { runSubAgent, createDelegationTool } from '../src/delegation.js';
+import { runSubAgent, createDelegationTool } from '../src/delegation/index.js';
 import type { Provider, Tool, Message, LLMResponse } from '../src/types.js';
 import type { ProviderOrchestrator } from '../src/router/orchestrator.js';
 import type { ProviderRegistry } from '../src/router/provider-registry.js';
