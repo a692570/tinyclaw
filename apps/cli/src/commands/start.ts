@@ -27,8 +27,10 @@ import {
   createConfigTools,
   createSessionQueue,
   createCronScheduler,
+  loadPlugins,
   buildProviderKeyName,
   type HeartwareConfig,
+  type ChannelPlugin,
 } from '@tinyclaw/core';
 import { createWebUI } from '@tinyclaw/ui';
 import { theme } from '../ui/theme.js';
@@ -174,6 +176,32 @@ export async function startCommand(): Promise<void> {
     configManager,
   };
 
+  // --- Load plugins ------------------------------------------------------
+
+  const plugins = await loadPlugins(configManager);
+  logger.info('✅ Plugins loaded', {
+    channels: plugins.channels.length,
+    providers: plugins.providers.length,
+    tools: plugins.tools.length,
+  });
+
+  // Merge plugin tools into context
+  const pairingTools = plugins.channels.flatMap(
+    (ch) => ch.getPairingTools?.(secretsManager, configManager) ?? [],
+  );
+  const pluginTools = plugins.tools.flatMap(
+    (tp) => tp.createTools(context),
+  );
+
+  if (pairingTools.length > 0 || pluginTools.length > 0) {
+    context.tools = [...context.tools, ...pairingTools, ...pluginTools];
+    logger.info('✅ Plugin tools merged', {
+      pairing: pairingTools.length,
+      plugin: pluginTools.length,
+      total: context.tools.length,
+    });
+  }
+
   // --- Initialize session queue ------------------------------------------
 
   const queue = createSessionQueue();
@@ -219,6 +247,25 @@ export async function startCommand(): Promise<void> {
 
   await webUI.start();
 
+  // --- Start channel plugins ---------------------------------------------
+
+  const pluginRuntimeContext = {
+    enqueue: (userId: string, message: string) =>
+      queue.enqueue(userId, () => agentLoop(message, userId, context)),
+    agentContext: context,
+    secrets: secretsManager,
+    configManager,
+  };
+
+  for (const channel of plugins.channels) {
+    try {
+      await channel.start(pluginRuntimeContext);
+      logger.info(`✅ Channel plugin started: ${channel.name}`);
+    } catch (err) {
+      logger.error(`Failed to start channel plugin "${channel.name}":`, err);
+    }
+  }
+
   const stats = learning.getStats();
   logger.log(`🧠 Learning: ${stats.totalPatterns} patterns learned`);
   logger.log('');
@@ -246,6 +293,16 @@ export async function startCommand(): Promise<void> {
       logger.info('Cron scheduler and session queue stopped');
     } catch (err) {
       logger.error('Error stopping cron/queue:', err);
+    }
+
+    // 0.5. Channel plugins
+    for (const channel of plugins.channels) {
+      try {
+        await channel.stop();
+        logger.info(`Channel plugin stopped: ${channel.name}`);
+      } catch (err) {
+        logger.error(`Error stopping channel plugin "${channel.name}":`, err);
+      }
     }
 
     // 1. Web UI
