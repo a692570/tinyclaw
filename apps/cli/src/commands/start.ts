@@ -203,10 +203,15 @@ export async function startCommand(): Promise<void> {
     ...createConfigTools(configManager),
   ];
 
-  // Merge plugin tools
-  const pairingTools = plugins.channels.flatMap(
-    (ch) => ch.getPairingTools?.(secretsManager, configManager) ?? [],
-  );
+  // Merge plugin pairing tools (channels + providers)
+  const pairingTools = [
+    ...plugins.channels.flatMap(
+      (ch) => ch.getPairingTools?.(secretsManager, configManager) ?? [],
+    ),
+    ...plugins.providers.flatMap(
+      (pp) => pp.getPairingTools?.(secretsManager, configManager) ?? [],
+    ),
+  ];
 
   // Create a temporary context for plugin tools that need AgentContext
   const baseContext = {
