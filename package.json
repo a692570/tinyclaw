@@ -5,7 +5,9 @@
   "workspaces": [
     "core",
     "apps/*",
-    "plugins/*"
+    "plugin/channel/*",
+    "plugin/provider/*",
+    "plugin/tools/*"
   ],
   "scripts": {
     "dev": "bun run --cwd apps/cli dev",
