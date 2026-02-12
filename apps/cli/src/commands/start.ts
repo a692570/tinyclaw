@@ -25,6 +25,8 @@ import {
   ConfigManager,
   createSecretsTools,
   createConfigTools,
+  createSessionQueue,
+  createCronScheduler,
   buildProviderKeyName,
   type HeartwareConfig,
 } from '@tinyclaw/core';
@@ -172,16 +174,46 @@ export async function startCommand(): Promise<void> {
     configManager,
   };
 
+  // --- Initialize session queue ------------------------------------------
+
+  const queue = createSessionQueue();
+  logger.info('✅ Session queue initialized');
+
+  // --- Initialize cron scheduler -----------------------------------------
+
+  const cron = createCronScheduler();
+
+  cron.register({
+    id: 'memory-consolidation',
+    schedule: '24h',
+    handler: async () => {
+      await queue.enqueue('heartbeat', async () => {
+        await agentLoop(
+          'Review your recent memory logs and consolidate any important patterns or facts into long-term memory. Be brief.',
+          'heartbeat',
+          context,
+        );
+      });
+    },
+  });
+
+  cron.start();
+  logger.info('✅ Cron scheduler initialized');
+
   // --- Start Web UI / API server ----------------------------------------
 
   const port = parseInt(process.env.PORT || '3000', 10);
   const webUI = createWebUI({
     port,
     onMessage: async (message: string, userId: string) => {
-      return await agentLoop(message, userId, context);
+      return await queue.enqueue(userId, () =>
+        agentLoop(message, userId, context),
+      );
     },
     onMessageStream: async (message: string, userId: string, callback) => {
-      await agentLoop(message, userId, context, callback);
+      await queue.enqueue(userId, () =>
+        agentLoop(message, userId, context, callback),
+      );
     },
   });
 
@@ -206,6 +238,15 @@ export async function startCommand(): Promise<void> {
     }
     isShuttingDown = true;
     logger.info('👋 Shutting down TinyClaw...');
+
+    // 0. Cron scheduler + session queue
+    try {
+      cron.stop();
+      queue.stop();
+      logger.info('Cron scheduler and session queue stopped');
+    } catch (err) {
+      logger.error('Error stopping cron/queue:', err);
+    }
 
     // 1. Web UI
     try {
