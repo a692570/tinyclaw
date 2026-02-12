@@ -31,6 +31,8 @@ import {
   buildProviderKeyName,
   type HeartwareConfig,
   type ChannelPlugin,
+  type ProviderTierConfig,
+  type Provider,
 } from '@tinyclaw/core';
 import { createWebUI } from '@tinyclaw/ui';
 import { theme } from '../ui/theme.js';
@@ -143,7 +145,7 @@ export async function startCommand(): Promise<void> {
   const heartwareContext = await loadHeartwareContext(heartwareManager);
   logger.info('✅ Heartware context loaded');
 
-  // --- Initialize provider (reads key from secrets-engine) --------------
+  // --- Initialize default provider (reads key from secrets-engine) ------
 
   const defaultProvider = createOllamaProvider({
     secrets: secretsManager,
@@ -151,30 +153,9 @@ export async function startCommand(): Promise<void> {
     baseUrl: providerBaseUrl,
   });
 
-  const orchestrator = new ProviderOrchestrator({ defaultProvider });
-  const provider = await orchestrator.selectActiveProvider();
-  logger.info('✅ Provider initialized and verified');
-
-  // --- Initialize tools -------------------------------------------------
-
-  const tools = [
-    ...createHeartwareTools(heartwareManager),
-    ...createSecretsTools(secretsManager),
-    ...createConfigTools(configManager),
-  ];
-  logger.info('✅ Loaded tools', { count: tools.length });
-
-  // --- Create agent context ---------------------------------------------
-
-  const context = {
-    db,
-    provider,
-    learning,
-    tools,
-    heartwareContext,
-    secrets: secretsManager,
-    configManager,
-  };
+  // Verify default provider is reachable
+  await new ProviderOrchestrator({ defaultProvider }).selectActiveProvider();
+  logger.info('✅ Default provider initialized and verified');
 
   // --- Load plugins ------------------------------------------------------
 
@@ -185,22 +166,77 @@ export async function startCommand(): Promise<void> {
     tools: plugins.tools.length,
   });
 
-  // Merge plugin tools into context
+  // --- Initialize plugin providers ---------------------------------------
+
+  const pluginProviders: Provider[] = [];
+
+  for (const pp of plugins.providers) {
+    try {
+      const provider = await pp.createProvider(secretsManager);
+      pluginProviders.push(provider);
+      logger.info(`✅ Plugin provider initialized: ${pp.name} (${provider.id})`);
+    } catch (err) {
+      logger.error(`Failed to initialize provider plugin "${pp.name}":`, err);
+    }
+  }
+
+  // --- Initialize smart routing orchestrator -----------------------------
+
+  const tierMapping = configManager.get<ProviderTierConfig>('routing.tierMapping');
+
+  const orchestrator = new ProviderOrchestrator({
+    defaultProvider,
+    providers: pluginProviders,
+    tierMapping: tierMapping ?? undefined,
+  });
+
+  logger.info('✅ Smart routing initialized', {
+    providers: orchestrator.getRegistry().ids(),
+    tierMapping: tierMapping ?? 'all-default',
+  });
+
+  // --- Initialize tools -------------------------------------------------
+
+  const tools = [
+    ...createHeartwareTools(heartwareManager),
+    ...createSecretsTools(secretsManager),
+    ...createConfigTools(configManager),
+  ];
+
+  // Merge plugin tools
   const pairingTools = plugins.channels.flatMap(
     (ch) => ch.getPairingTools?.(secretsManager, configManager) ?? [],
   );
+
+  // Create a temporary context for plugin tools that need AgentContext
+  const baseContext = {
+    db,
+    provider: defaultProvider,
+    learning,
+    tools,
+    heartwareContext,
+    secrets: secretsManager,
+    configManager,
+  };
+
   const pluginTools = plugins.tools.flatMap(
-    (tp) => tp.createTools(context),
+    (tp) => tp.createTools(baseContext),
   );
 
-  if (pairingTools.length > 0 || pluginTools.length > 0) {
-    context.tools = [...context.tools, ...pairingTools, ...pluginTools];
-    logger.info('✅ Plugin tools merged', {
-      pairing: pairingTools.length,
-      plugin: pluginTools.length,
-      total: context.tools.length,
-    });
-  }
+  const allTools = [...tools, ...pairingTools, ...pluginTools];
+  logger.info('✅ Loaded tools', { count: allTools.length });
+
+  // --- Create agent context ---------------------------------------------
+
+  const context = {
+    db,
+    provider: defaultProvider,
+    learning,
+    tools: allTools,
+    heartwareContext,
+    secrets: secretsManager,
+    configManager,
+  };
 
   // --- Initialize session queue ------------------------------------------
 
@@ -234,13 +270,30 @@ export async function startCommand(): Promise<void> {
   const webUI = createWebUI({
     port,
     onMessage: async (message: string, userId: string) => {
+      const { provider, classification, failedOver } =
+        await orchestrator.routeWithHealth(message);
+      logger.debug('Routed query', {
+        tier: classification.tier,
+        provider: provider.id,
+        confidence: classification.confidence.toFixed(2),
+        failedOver,
+      });
+      const routedContext = { ...context, provider };
       return await queue.enqueue(userId, () =>
-        agentLoop(message, userId, context),
+        agentLoop(message, userId, routedContext),
       );
     },
     onMessageStream: async (message: string, userId: string, callback) => {
+      const { provider, classification, failedOver } =
+        await orchestrator.routeWithHealth(message);
+      logger.debug('Routed query (stream)', {
+        tier: classification.tier,
+        provider: provider.id,
+        failedOver,
+      });
+      const routedContext = { ...context, provider };
       await queue.enqueue(userId, () =>
-        agentLoop(message, userId, context, callback),
+        agentLoop(message, userId, routedContext, callback),
       );
     },
   });
@@ -250,8 +303,13 @@ export async function startCommand(): Promise<void> {
   // --- Start channel plugins ---------------------------------------------
 
   const pluginRuntimeContext = {
-    enqueue: (userId: string, message: string) =>
-      queue.enqueue(userId, () => agentLoop(message, userId, context)),
+    enqueue: async (userId: string, message: string) => {
+      const { provider } = await orchestrator.routeWithHealth(message);
+      const routedContext = { ...context, provider };
+      return queue.enqueue(userId, () =>
+        agentLoop(message, userId, routedContext),
+      );
+    },
     agentContext: context,
     secrets: secretsManager,
     configManager,
