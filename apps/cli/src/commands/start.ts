@@ -106,7 +106,7 @@ export async function startCommand(): Promise<void> {
 
   // Read provider settings from config (fallback to defaults)
   const providerModel =
-    configManager.get<string>('providers.starterBrain.model') ?? 'llama3.2:3b';
+    configManager.get<string>('providers.starterBrain.model') ?? 'gpt-oss:120b-cloud';
   const providerBaseUrl =
     configManager.get<string>('providers.starterBrain.baseUrl') ?? 'https://ollama.com';
 

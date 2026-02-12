@@ -3,12 +3,13 @@
  *
  * Interactive TUI wizard that walks the user through first-time
  * TinyClaw configuration:
- *   1. Provider selection (Ollama Cloud)
- *   2. API key entry (masked)
- *   3. Model selection
- *   4. Base URL configuration
- *   5. Persist to secrets-engine + config-engine
- *   6. Verify provider connectivity
+ *   1. API key entry (masked)
+ *   2. Persist to secrets-engine + config-engine
+ *   3. Verify provider connectivity
+ *
+ * Ollama Cloud is the default (and only) provider. The model and base URL
+ * are hardcoded — once the agent has its initial "brain" it can configure
+ * everything else by itself.
  *
  * Uses @clack/prompts for a beautiful, lightweight terminal experience.
  */
@@ -22,6 +23,13 @@ import {
 } from '@tinyclaw/core';
 import { showBanner } from '../ui/banner.js';
 import { theme } from '../ui/theme.js';
+
+// ---------------------------------------------------------------------------
+// Hardcoded defaults — Ollama Cloud is the starter brain
+// ---------------------------------------------------------------------------
+const DEFAULT_PROVIDER = 'ollama';
+const DEFAULT_MODEL = 'gpt-oss:120b-cloud';
+const DEFAULT_BASE_URL = 'https://ollama.com';
 
 /**
  * Check if the user has already completed setup
@@ -48,14 +56,11 @@ export async function setupCommand(): Promise<void> {
   const alreadyConfigured = await isAlreadyConfigured(secretsManager);
 
   if (alreadyConfigured) {
-    const currentModel = configManager.get<string>('providers.starterBrain.model') ?? 'llama3.2:3b';
-    const currentUrl = configManager.get<string>('providers.starterBrain.baseUrl') ?? 'https://ollama.com';
-
     p.log.info(
       `Existing configuration found:\n` +
       `  Provider : ${theme.label('Ollama Cloud')}\n` +
-      `  Model    : ${theme.label(currentModel)}\n` +
-      `  Base URL : ${theme.label(currentUrl)}\n` +
+      `  Model    : ${theme.label(DEFAULT_MODEL)}\n` +
+      `  Base URL : ${theme.label(DEFAULT_BASE_URL)}\n` +
       `  API Key  : ${theme.dim('••••••••  (stored in secrets-engine)')}`
     );
 
@@ -71,26 +76,14 @@ export async function setupCommand(): Promise<void> {
     }
   }
 
-  // --- Step 1: Provider selection -------------------------------------
+  // --- Step 1: API key ------------------------------------------------
 
-  const provider = await p.select({
-    message: 'Select your AI provider',
-    options: [
-      {
-        value: 'ollama',
-        label: 'Ollama Cloud',
-        hint: 'default — works with Ollama Cloud API',
-      },
-    ],
-  });
-
-  if (p.isCancel(provider)) {
-    p.outro(theme.dim('Setup cancelled.'));
-    await cleanup(secretsManager, configManager);
-    return;
-  }
-
-  // --- Step 2: API key ------------------------------------------------
+  p.log.info(
+    `Ollama Cloud will be your starter brain.\n` +
+    `  Model    : ${theme.label(DEFAULT_MODEL)}\n` +
+    `  Base URL : ${theme.label(DEFAULT_BASE_URL)}\n\n` +
+    `Create a free account at ${theme.label('https://ollama.com')} to get your API key.`
+  );
 
   const apiKey = await p.password({
     message: 'Enter your Ollama Cloud API key',
@@ -107,47 +100,6 @@ export async function setupCommand(): Promise<void> {
     return;
   }
 
-  // --- Step 3: Model selection ----------------------------------------
-
-  const model = await p.select({
-    message: 'Select the default model',
-    options: [
-      { value: 'llama3.2:3b', label: 'llama3.2:3b', hint: 'recommended — fast and capable' },
-      { value: 'llama3.2:1b', label: 'llama3.2:1b', hint: 'lightweight — lower resource usage' },
-      { value: 'gpt-oss:120b-cloud', label: 'gpt-oss:120b-cloud', hint: 'powerful — cloud-hosted' },
-    ],
-  });
-
-  if (p.isCancel(model)) {
-    p.outro(theme.dim('Setup cancelled.'));
-    await cleanup(secretsManager, configManager);
-    return;
-  }
-
-  // --- Step 4: Base URL -----------------------------------------------
-
-  const baseUrl = await p.text({
-    message: 'Ollama Cloud base URL',
-    placeholder: 'https://ollama.com',
-    defaultValue: 'https://ollama.com',
-    validate: (value) => {
-      if (!value) return;
-      try {
-        new URL(value);
-      } catch {
-        return 'Please enter a valid URL';
-      }
-    },
-  });
-
-  if (p.isCancel(baseUrl)) {
-    p.outro(theme.dim('Setup cancelled.'));
-    await cleanup(secretsManager, configManager);
-    return;
-  }
-
-  const resolvedUrl = (baseUrl as string).trim() || 'https://ollama.com';
-
   // --- Step 5: Persist ------------------------------------------------
 
   const persistSpinner = p.spinner();
@@ -155,13 +107,13 @@ export async function setupCommand(): Promise<void> {
 
   try {
     // Store API key in secrets-engine (AES-256-GCM encrypted)
-    await secretsManager.store(buildProviderKeyName('ollama'), apiKey.trim());
+    await secretsManager.store(buildProviderKeyName(DEFAULT_PROVIDER), apiKey.trim());
 
     // Store provider config in config-engine (SQLite-backed)
     configManager.set('providers.starterBrain', {
-      model: model as string,
-      baseUrl: resolvedUrl,
-      apiKeyRef: buildProviderKeyName('ollama'),
+      model: DEFAULT_MODEL,
+      baseUrl: DEFAULT_BASE_URL,
+      apiKeyRef: buildProviderKeyName(DEFAULT_PROVIDER),
     });
 
     persistSpinner.stop(theme.success('Configuration saved'));
@@ -181,8 +133,8 @@ export async function setupCommand(): Promise<void> {
   try {
     const ollamaProvider = createOllamaProvider({
       secrets: secretsManager,
-      model: model as string,
-      baseUrl: resolvedUrl,
+      model: DEFAULT_MODEL,
+      baseUrl: DEFAULT_BASE_URL,
     });
 
     const available = await ollamaProvider.isAvailable();
@@ -208,8 +160,8 @@ export async function setupCommand(): Promise<void> {
 
   p.log.success(
     `${theme.label('Provider')}  : Ollama Cloud\n` +
-    `${theme.label('Model')}     : ${model}\n` +
-    `${theme.label('Base URL')}  : ${resolvedUrl}\n` +
+    `${theme.label('Model')}     : ${DEFAULT_MODEL}\n` +
+    `${theme.label('Base URL')}  : ${DEFAULT_BASE_URL}\n` +
     `${theme.label('API Key')}   : ${theme.dim('••••••••  (encrypted)')}`
   );
 
