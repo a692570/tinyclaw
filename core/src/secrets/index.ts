@@ -28,4 +28,4 @@ export { createSecretsTools } from './tools.js';
 
 // Types
 export type { SecretsConfig, SecretsManagerInterface } from './types.js';
-export { buildProviderKeyName, SECRET_KEY_PREFIXES } from './types.js';
+export { buildProviderKeyName, buildChannelKeyName, SECRET_KEY_PREFIXES } from './types.js';

@@ -40,6 +40,7 @@ export interface SecretsManagerInterface {
  */
 export const SECRET_KEY_PREFIXES = {
   provider: 'provider',
+  channel: 'channel',
 } as const;
 
 /**
@@ -47,4 +48,11 @@ export const SECRET_KEY_PREFIXES = {
  */
 export function buildProviderKeyName(providerName: string): string {
   return `${SECRET_KEY_PREFIXES.provider}.${providerName}.apiKey`;
+}
+
+/**
+ * Build a channel token key following the naming convention
+ */
+export function buildChannelKeyName(channelName: string): string {
+  return `${SECRET_KEY_PREFIXES.channel}.${channelName}.token`;
 }
