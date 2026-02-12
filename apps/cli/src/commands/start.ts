@@ -28,6 +28,7 @@ import {
   createSessionQueue,
   createCronScheduler,
   loadPlugins,
+  createDelegationTool,
   buildProviderKeyName,
   type HeartwareConfig,
   type ChannelPlugin,
@@ -229,7 +230,12 @@ export async function startCommand(): Promise<void> {
   );
 
   const allTools = [...tools, ...pairingTools, ...pluginTools];
-  logger.info('✅ Loaded tools', { count: allTools.length });
+
+  // --- Create delegation tool ---------------------------------------------
+
+  const delegationTool = createDelegationTool({ orchestrator, allTools });
+  const allToolsWithDelegation = [...allTools, delegationTool];
+  logger.info('✅ Loaded tools', { count: allToolsWithDelegation.length });
 
   // --- Create agent context ---------------------------------------------
 
@@ -237,7 +243,7 @@ export async function startCommand(): Promise<void> {
     db,
     provider: defaultProvider,
     learning,
-    tools: allTools,
+    tools: allToolsWithDelegation,
     heartwareContext,
     secrets: secretsManager,
     configManager,
