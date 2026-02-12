@@ -112,7 +112,7 @@ export async function startCommand(): Promise<void> {
 
   // --- Initialize database ----------------------------------------------
 
-  const dbPath = join(dataDir, 'data', 'tinyclaw.db');
+  const dbPath = join(dataDir, 'data', 'agent.db');
   const db = createDatabase(dbPath);
   logger.info('✅ Database initialized');
 
