@@ -51,7 +51,7 @@ describe('ConfigManager — factory', () => {
     expect(manager.get('learning.enabled')).toBe(true);
     expect(manager.get('learning.minConfidence')).toBe(0.7);
     expect(manager.get('security.rateLimit.maxRequests')).toBe(20);
-    expect(manager.get('providers.starterBrain.model')).toBe('llama3.2:3b');
+    expect(manager.get('providers.starterBrain.model')).toBe('gpt-oss:120b-cloud');
   });
 
   test('defaults are not overwritten on second open', async () => {

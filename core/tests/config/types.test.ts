@@ -28,8 +28,8 @@ describe('CONFIG_DEFAULTS', () => {
   });
 
   test('defaults have correct starter brain config', () => {
-    expect(CONFIG_DEFAULTS.providers?.starterBrain?.model).toBe('llama3.2:3b');
-    expect(CONFIG_DEFAULTS.providers?.starterBrain?.baseUrl).toBe('http://localhost:11434');
+    expect(CONFIG_DEFAULTS.providers?.starterBrain?.model).toBe('gpt-oss:120b-cloud');
+    expect(CONFIG_DEFAULTS.providers?.starterBrain?.baseUrl).toBe('https://ollama.com');
   });
 
   test('defaults have correct learning config', () => {
