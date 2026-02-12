@@ -28,7 +28,7 @@ import {
   createSessionQueue,
   createCronScheduler,
   loadPlugins,
-  createDelegationTool,
+  createDelegationTools,
   buildProviderKeyName,
   type HeartwareConfig,
   type ChannelPlugin,
@@ -231,10 +231,23 @@ export async function startCommand(): Promise<void> {
 
   const allTools = [...tools, ...pairingTools, ...pluginTools];
 
-  // --- Create delegation tool ---------------------------------------------
+  // --- Initialize session queue (before delegation — background runner needs it) --
 
-  const delegationTool = createDelegationTool({ orchestrator, allTools });
-  const allToolsWithDelegation = [...allTools, delegationTool];
+  const queue = createSessionQueue();
+  logger.info('✅ Session queue initialized');
+
+  // --- Create delegation v2 subsystems -----------------------------------
+
+  const delegationResult = createDelegationTools({
+    orchestrator,
+    allTools,
+    db,
+    heartwareContext,
+    learning,
+    queue,
+  });
+
+  const allToolsWithDelegation = [...allTools, ...delegationResult.tools];
   logger.info('✅ Loaded tools', { count: allToolsWithDelegation.length });
 
   // --- Create agent context ---------------------------------------------
@@ -247,12 +260,12 @@ export async function startCommand(): Promise<void> {
     heartwareContext,
     secrets: secretsManager,
     configManager,
+    delegation: {
+      lifecycle: delegationResult.lifecycle,
+      templates: delegationResult.templates,
+      background: delegationResult.background,
+    },
   };
-
-  // --- Initialize session queue ------------------------------------------
-
-  const queue = createSessionQueue();
-  logger.info('✅ Session queue initialized');
 
   // --- Initialize cron scheduler -----------------------------------------
 
@@ -269,6 +282,18 @@ export async function startCommand(): Promise<void> {
           context,
         );
       });
+    },
+  });
+
+  cron.register({
+    id: 'delegation-cleanup',
+    schedule: '24h',
+    handler: async () => {
+      const cleaned = delegationResult.lifecycle.cleanup();
+      const stale = delegationResult.background.cleanupStale(5 * 60 * 1000);
+      if (cleaned > 0 || stale > 0) {
+        logger.info('Delegation cleanup', { expiredAgents: cleaned, staleTasks: stale });
+      }
     },
   });
 
@@ -364,7 +389,15 @@ export async function startCommand(): Promise<void> {
       logger.error('Error stopping cron/queue:', err);
     }
 
-    // 0.5. Channel plugins
+    // 0.5. Cancel background delegation tasks
+    try {
+      delegationResult.background.cancelAll();
+      logger.info('Background tasks cancelled');
+    } catch (err) {
+      logger.error('Error cancelling background tasks:', err);
+    }
+
+    // 0.6. Channel plugins
     for (const channel of plugins.channels) {
       try {
         await channel.stop();
