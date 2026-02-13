@@ -347,10 +347,10 @@ export async function startCommand(): Promise<void> {
     id: 'memory-consolidation',
     schedule: '24h',
     handler: async () => {
-      await queue.enqueue('heartbeat', async () => {
+      await queue.enqueue('pulse', async () => {
         await agentLoop(
           'Review your recent memory logs and consolidate any important patterns or facts into long-term memory. Be brief.',
-          'heartbeat',
+          'pulse',
           context,
         );
       });
