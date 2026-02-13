@@ -72,3 +72,21 @@ export * from './secrets/index.js';
 
 // Learning exports
 export { createLearningEngine, type LearningEngineConfig } from './learning/index.js';
+
+// Matcher exports (v3)
+export { createHybridMatcher, type HybridMatcher, type HybridMatcherConfig, type MatchResult } from './matcher.js';
+
+// Memory engine exports (v3)
+export { createMemoryEngine } from './memory-engine.js';
+
+// Event bus exports (v3)
+export { createEventBus, type EventBus, type EventTopic, type EventPayload } from './event-bus.js';
+
+// Blackboard exports (v3)
+export { createBlackboard, type Blackboard, type BlackboardProblem } from './delegation/blackboard.js';
+
+// Timeout estimator exports (v3)
+export { createTimeoutEstimator, type TimeoutEstimator, type TimeoutEstimate, type ExtensionDecision } from './delegation/timeout-estimator.js';
+
+// Sandbox exports (v3)
+export { createSandbox, type Sandbox, type SandboxResult, type SandboxConfig } from './sandbox/index.js';
