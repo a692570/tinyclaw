@@ -30,10 +30,18 @@ import {
   loadPlugins,
   createDelegationTools,
   buildProviderKeyName,
+  // v3 subsystems
+  createEventBus,
+  createMemoryEngine,
+  createHybridMatcher,
+  createSandbox,
+  createBlackboard,
+  createTimeoutEstimator,
   type HeartwareConfig,
   type ChannelPlugin,
   type ProviderTierConfig,
   type Provider,
+  type Tool,
 } from '@tinyclaw/core';
 import { createWebUI } from '@tinyclaw/ui';
 import { theme } from '../ui/theme.js';
@@ -236,6 +244,69 @@ export async function startCommand(): Promise<void> {
   const queue = createSessionQueue();
   logger.info('✅ Session queue initialized');
 
+  // --- Initialize v3 subsystems ------------------------------------------
+
+  // Event bus (before delegation — delegation emits events)
+  const eventBus = createEventBus();
+  logger.info('✅ Event bus initialized');
+
+  // Memory engine (after db — uses episodic_memory + memory_fts tables)
+  const memoryEngine = createMemoryEngine(db);
+  logger.info('✅ Memory engine initialized (episodic + FTS5 + temporal decay)');
+
+  // Hybrid semantic matcher (standalone, no deps)
+  const matcher = createHybridMatcher();
+  logger.info('✅ Hybrid matcher initialized');
+
+  // Timeout estimator (after db — uses task_metrics table)
+  const timeoutEstimator = createTimeoutEstimator(db);
+  logger.info('✅ Timeout estimator initialized');
+
+  // Code execution sandbox
+  const sandbox = createSandbox();
+  logger.info('✅ Sandbox initialized');
+
+  // Blackboard (after db + eventBus)
+  const blackboard = createBlackboard(db, eventBus);
+  logger.info('✅ Blackboard initialized');
+
+  // execute_code tool — sandboxed code execution for agents
+  const executeCodeTool: Tool = {
+    name: 'execute_code',
+    description:
+      'Execute JavaScript/TypeScript code in a sandboxed environment. ' +
+      'No filesystem or network access by default. ' +
+      'Use `return` to produce output. Use `input` variable to access passed data.',
+    parameters: {
+      type: 'object',
+      properties: {
+        code: { type: 'string', description: 'The JavaScript/TypeScript code to execute' },
+        input: { description: 'Optional data to pass as the `input` variable in the sandbox' },
+        timeout: { type: 'number', description: 'Override timeout in ms (max 30s)' },
+      },
+      required: ['code'],
+    },
+    async execute(args) {
+      const code = String(args.code || '');
+      if (!code) return 'Error: code is required.';
+
+      const timeout = args.timeout ? Math.min(Number(args.timeout), 30_000) : undefined;
+      const input = args.input;
+
+      const result = input !== undefined
+        ? await sandbox.executeWithInput(code, input, { timeoutMs: timeout })
+        : await sandbox.execute(code, { timeoutMs: timeout });
+
+      if (result.success) {
+        return result.output || '(no output)';
+      }
+      return `Error: ${result.error || 'Unknown execution error'} (${result.durationMs}ms)`;
+    },
+  };
+
+  // Add execute_code to allTools before delegation
+  allTools.push(executeCodeTool);
+
   // --- Create delegation v2 subsystems -----------------------------------
 
   const delegationResult = createDelegationTools({
@@ -265,6 +336,7 @@ export async function startCommand(): Promise<void> {
       templates: delegationResult.templates,
       background: delegationResult.background,
     },
+    memory: memoryEngine,
   };
 
   // --- Initialize cron scheduler -----------------------------------------
@@ -293,6 +365,30 @@ export async function startCommand(): Promise<void> {
       const stale = delegationResult.background.cleanupStale(5 * 60 * 1000);
       if (cleaned > 0 || stale > 0) {
         logger.info('Delegation cleanup', { expiredAgents: cleaned, staleTasks: stale });
+      }
+    },
+  });
+
+  // v3: Memory consolidation — merge duplicates, prune low-importance, decay old memories
+  cron.register({
+    id: 'memory-consolidation-v3',
+    schedule: '6h',
+    handler: async () => {
+      const result = memoryEngine.consolidate('default-user');
+      if (result.merged > 0 || result.pruned > 0 || result.decayed > 0) {
+        logger.info('Memory consolidation', result);
+      }
+    },
+  });
+
+  // v3: Blackboard cleanup — remove resolved problems older than 7 days
+  cron.register({
+    id: 'blackboard-cleanup',
+    schedule: '24h',
+    handler: async () => {
+      const cleaned = blackboard.cleanup(7 * 24 * 60 * 60 * 1000);
+      if (cleaned > 0) {
+        logger.info('Blackboard cleanup', { removed: cleaned });
       }
     },
   });
@@ -395,6 +491,22 @@ export async function startCommand(): Promise<void> {
       logger.info('Background tasks cancelled');
     } catch (err) {
       logger.error('Error cancelling background tasks:', err);
+    }
+
+    // 0.55. Sandbox shutdown — terminate all running workers
+    try {
+      sandbox.shutdown();
+      logger.info('Sandbox workers terminated');
+    } catch (err) {
+      logger.error('Error shutting down sandbox:', err);
+    }
+
+    // 0.56. Event bus cleanup — clear all subscriptions
+    try {
+      eventBus.clear();
+      logger.info('Event bus cleared');
+    } catch (err) {
+      logger.error('Error clearing event bus:', err);
     }
 
     // 0.6. Channel plugins
