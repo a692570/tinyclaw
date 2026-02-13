@@ -31,12 +31,13 @@ import type { SessionQueue } from '../queue.js';
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Default safe tool set for sub-agents (read-only). */
+/** Default safe tool set for sub-agents (read-only + sandboxed compute). */
 const DEFAULT_SAFE_TOOLS = new Set([
   'heartware_read',
   'heartware_search',
   'heartware_list',
   'memory_recall',
+  'execute_code',
 ]);
 
 /** Foreground sub-agent timeout. */
